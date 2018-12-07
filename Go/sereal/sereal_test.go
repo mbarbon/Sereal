@@ -957,3 +957,45 @@ func TestIssue150(t *testing.T) {
 		t.Fatalf("should get error from inner marshal call, got %v", err)
 	}
 }
+
+func TestChangeType(t *testing.T) {
+	e := &Encoder{CompressionThreshold: 5, Compression: SnappyCompressor{Incremental: true}}
+	var s string
+	{
+		r := make([]rune, 2048)
+		for i := range s {
+			r[i] = 'a'
+		}
+		s = string(r)
+	}
+
+	b, err := e.Marshal(s)
+	//t.Fatalf("L %d %d", len(b), len(s))
+	if err != nil {
+		t.Fatalf("Encoding error: %v", err)
+	}
+	if b[4]&0xf0 == 0 {
+		t.Fatalf("Document was not compressed: %d", b[4])
+	}
+
+	d, err := DecmmpressDocument(b, nil)
+	if err != nil {
+		t.Fatalf("Decmopression error: %v", err)
+	}
+	if d[4]&0xf0 != 0 {
+		t.Fatal("Document not marked as raw")
+	}
+	if len(d) <= len(b) {
+		t.Fatalf("Decompressed document is not larger %d <= %d", len(d), len(b))
+	}
+
+	var v string
+	err = Unmarshal(d, &v)
+	if err != nil {
+		t.Fatalf("Unmarshaling error: %v", err)
+	}
+
+	if v != s {
+		t.Fatal("Strings are not equal")
+	}
+}
